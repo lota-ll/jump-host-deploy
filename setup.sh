@@ -57,13 +57,13 @@ network:
         - 192.168.100.40/24
       routes:
         - to: default
-          via: 192.168.100.1
+          via: 192.168.100.11
         # Internal та OT — через Firewall VM
         - to: 192.168.20.0/24
-          via: 192.168.100.1
+          via: 192.168.100.11
           metric: 100
         - to: 172.16.0.0/24
-          via: 192.168.100.1
+          via: 192.168.100.11
           metric: 200
       nameservers:
         addresses: [8.8.8.8, 1.1.1.1]
@@ -185,7 +185,7 @@ echo "║                                                      ║"
 echo "║  Interface:                                          ║"
 echo "║    eth0: 192.168.100.40/24  (Management DMZ)         ║"
 echo "║                                                      ║"
-echo "║  Routed via firewall (192.168.100.1):                ║"
+echo "║  Routed via firewall (192.168.100.11):                ║"
 echo "║    192.168.20.0/24   (Internal / CSMS)               ║"
 echo "║    172.16.0.0/24     (OT / Chargers)                 ║"
 echo "║                                                      ║"
