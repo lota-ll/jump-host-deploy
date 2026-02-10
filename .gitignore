@@ -1,5 +1,0 @@
-# SSH keys are sensitive but needed for CTF setup
-# Include them in the repo for deployment convenience
-# In production, NEVER commit SSH keys!
-*.log
-*.tmp
