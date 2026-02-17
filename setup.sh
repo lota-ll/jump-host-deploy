@@ -4,8 +4,8 @@
 # Variant: SINGLE INTERFACE via Firewall VM
 #
 # Сервер:  192.168.100.40
-# Network: eth0 -> 192.168.100.40/24 (DMZ, єдиний інтерфейс)
-# Gateway: 192.168.100.1 (Firewall VM)
+# Network: ens3 -> 192.168.100.40/24 (DMZ, єдиний інтерфейс)
+# Gateway: 192.168.100.11 (Firewall VM)
 #
 # Доступ до Internal/OT через static routes via Firewall VM:
 #   192.168.20.0/24  (Internal / CSMS)
@@ -37,10 +37,10 @@ echo "[1/8] Налаштування мережевого інтерфейсу..
 
 # Знайти перший не-loopback інтерфейс
 IF_DMZ=$(ip -o link show | awk -F': ' '{print $2}' | grep -v lo | head -1)
-IF_DMZ="${IF_DMZ:-eth0}"
+IF_DMZ="${IF_DMZ:-ens3}"
 
 echo "   Interface: $IF_DMZ -> 192.168.100.40/24"
-echo "   Gateway:   192.168.100.1 (Firewall VM)"
+echo "   Gateway:   192.168.100.11 (Firewall VM)"
 echo "   Static routes via firewall:"
 echo "     192.168.20.0/24  (Internal/CSMS)"
 echo "     172.16.0.0/24    (OT/Chargers)"
@@ -166,30 +166,35 @@ systemctl restart sshd
 echo "✅ SSH налаштовано"
 
 # ============================================================================
-# 5. FLAG #6
+# 5. FLAG #5 (Jump Host Pivot)
 # ============================================================================
 echo ""
-echo "[5/8] Розміщення FLAG #6..."
+echo "[5/8] Розміщення FLAG #5..."
 
 # MOTD — показує один інтерфейс + роути через firewall
 cat > /etc/update-motd.d/99-ecocharge << 'EOF'
 #!/bin/bash
 echo ""
-echo "╔══════════════════════════════════════════════════════╗"
-echo "║          EcoCharge Jump Host - Connected             ║"
-echo "╠══════════════════════════════════════════════════════╣"
-echo "║                                                      ║"
-echo "║  Hostname:  jumphost.ecocharge.internal              ║"
-echo "║  Role:      Infrastructure Management Bastion        ║"
-echo "║                                                      ║"
-echo "║  Interface:                                          ║"
-echo "║    eth0: 192.168.100.40/24  (Management DMZ)         ║"
-echo "║                                                      ║"
-echo "║  Routed via firewall (192.168.100.11):                ║"
-echo "║    192.168.20.0/24   (Internal / CSMS)               ║"
-echo "║    172.16.0.0/24     (OT / Chargers)                 ║"
-echo "║                                                      ║"
-echo "╚══════════════════════════════════════════════════════╝"
+echo "╔══════════════════════════════════════════════════════════════╗"
+echo "║          EcoCharge Jump Host - Connected                     ║"
+echo "╠══════════════════════════════════════════════════════════════╣"
+echo "║                                                              ║"
+echo "║  Hostname:  jumphost.ecocharge.internal                      ║"
+echo "║  Role:      Infrastructure Management Bastion                ║"
+echo "║                                                              ║"
+echo "║  Interface:                                                  ║"
+echo "║    ens3: 192.168.100.40/24  (Management DMZ)                 ║"
+echo "║                                                              ║"
+echo "║  Routed via firewall (192.168.100.11):                       ║"
+echo "║    192.168.20.0/24   (Internal / CSMS)                       ║"
+echo "║    172.16.0.0/24     (OT / Chargers)                         ║"
+echo "║                                                              ║"
+echo "║  Key Services:                                               ║"
+echo "║    CSMS UI:  http://192.168.20.20:3000                       ║"
+echo "║    Hasura:   http://192.168.20.20:8090/console               ║"
+echo "║    Grafana:  http://192.168.100.30:3000                      ║"
+echo "║                                                              ║"
+echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 EOF
 chmod +x /etc/update-motd.d/99-ecocharge
@@ -201,31 +206,41 @@ for f in /etc/update-motd.d/10-help-text \
     [ -f "$f" ] && chmod -x "$f"
 done
 
-# FLAG у файлі
-echo "FLAG{p1v0t_m4st3r_jumb0}" > /home/operator/.flag6.txt
-chown operator:operator /home/operator/.flag6.txt
-chmod 400 /home/operator/.flag6.txt
+# FLAG #5 у файлі (видимий)
+cat > /home/operator/FLAG_5.txt << 'FLAGEOF'
+FLAG{jump_h0st_p1v0t}
 
-# .bashrc — welcome message з реалістичними підказками
+Congratulations! You successfully pivoted to the Jump Host.
+
+FLAGEOF
+chown operator:operator /home/operator/FLAG_5.txt
+chmod 644 /home/operator/FLAG_5.txt
+
+# .bashrc — welcome message з підказками для атаки
 cat >> /home/operator/.bashrc << 'EOF'
 
 # EcoCharge Jump Host welcome
 echo ""
 echo "  Welcome, operator!"
+echo ""
 echo "  Accessible networks:"
-echo "    DMZ:      192.168.100.0/24 (eth0, direct)"
+echo "    DMZ:      192.168.100.0/24 (direct)"
 echo "    Internal: 192.168.20.0/24  (via firewall)"
 echo "    OT:       172.16.0.0/24    (via firewall)"
 echo ""
+echo "  Key services:"
+echo "    CSMS UI:    http://192.168.20.20:3000"
+echo "    CSMS API:   http://192.168.20.20:8080"
+echo "    Hasura:     http://192.168.20.20:8090/console"
+echo "    Grafana:    http://192.168.100.30:3000"
+echo ""
 echo "  Quick commands:"
-echo "    psql -h 192.168.20.20 -U citrine -d citrine"
-echo "    wscat -c ws://192.168.20.20:8092/CP001"
-echo "    tcpdump -i eth0 host 192.168.20.20 and port 8092"
 echo "    ./scripts/check-stations.sh"
+echo "    curl -s http://192.168.20.20:3000 | head"
 echo ""
 EOF
 
-echo "✅ FLAG #6 розміщено"
+echo "✅ FLAG #5 розміщено"
 
 # ============================================================================
 # 6. ДОПОМІЖНІ СКРИПТИ
@@ -259,7 +274,7 @@ curl -sf http://192.168.100.30:3000/api/health > /dev/null 2>&1 \
     && echo "  ✅ Grafana: OK" || echo "  ❌ Grafana: UNREACHABLE"
 echo ""
 echo "[Checking API Gateway...]"
-curl -sf http://192.168.100.20:3000/api/v1/health > /dev/null 2>&1 \
+curl -sf http://192.168.100.20:8080/api/v1/health > /dev/null 2>&1 \
     && echo "  ✅ API Gateway: OK" || echo "  ❌ API Gateway: UNREACHABLE"
 echo ""
 echo "=== Check Complete ==="
@@ -271,15 +286,15 @@ cat > /home/operator/scripts/ocpp-debug.sh << 'EOF'
 # EcoCharge - OCPP Debug Tool
 # Single-interface variant: traffic captured on eth0
 #
-# OCPP 1.6 (CP001, port 8092) — NOT encrypted
+# OCPP 1.6 (CP001, port 8092)
 # OCPP 2.0.1 (CP002, port 8081) — Security Profile 1
 
 echo "=== OCPP Debug Tool ==="
 echo ""
 echo "Available methods:"
 echo ""
-echo "1. Passive capture (traffic routed through eth0):"
-echo "   sudo tcpdump -i eth0 -A 'host 192.168.20.20 and (port 8092 or port 8081)'"
+echo "1. Passive capture (traffic routed through ens3):"
+echo "   sudo tcpdump -i ens3 -A 'host 192.168.20.20 and (port 8092 or port 8081)'"
 echo ""
 echo "2. Active OCPP 1.6 interaction (CP001):"
 echo "   wscat -c ws://192.168.20.20:8092/CP001"
@@ -290,28 +305,13 @@ echo "   > [2,\"stop-001\",\"RemoteStopTransaction\",{\"transactionId\":1}]"
 echo ""
 
 if [ "$1" = "capture" ]; then
-    echo "Starting passive capture on eth0..."
-    tcpdump -i eth0 -A \
+    echo "Starting passive capture on ens3..."
+    tcpdump -i ens3 -A \
         "host 192.168.20.20 and (port 8092 or port 8081 or port 8080)" \
         2>/dev/null || echo "Error: run as sudo"
 fi
 EOF
 
-# db-maintenance.sh — без змін
-cat > /home/operator/scripts/db-maintenance.sh << 'EOF'
-#!/bin/bash
-# EcoCharge - Database Maintenance
-# Connection: citrine:citrine@192.168.20.20:5432/citrine
-echo "=== Database Maintenance ==="
-echo "Connecting to CitrineOS PostgreSQL..."
-echo ""
-PGPASSWORD=citrine psql \
-    -h 192.168.20.20 -U citrine -d citrine \
-    -c "SELECT 'Connected' as status, version();" \
-    2>/dev/null || echo "❌ Cannot connect to database"
-echo ""
-echo "=== Maintenance Complete ==="
-EOF
 
 chmod +x /home/operator/scripts/*.sh
 chown -R operator:operator /home/operator/scripts
@@ -335,13 +335,12 @@ EOF
 chmod 600 /home/operator/.ssh/config
 chown operator:operator /home/operator/.ssh/config
 
-# .bash_history — ЗМІНА: eth2 -> eth0 у tcpdump
+# .bash_history — ЗМІНА: ens3 -> eth0 у tcpdump
 cat > /home/operator/.bash_history << 'EOF'
 ping 192.168.20.20
-psql -h 192.168.20.20 -U citrine -d citrine -c "SELECT id FROM \"ChargingStation\";"
 curl http://192.168.100.30:3000/api/health
 ./scripts/check-stations.sh
-tcpdump -i eth0 -A host 192.168.20.20 and port 8092
+tcpdump -i ens3 -A host 192.168.20.20 and port 8092
 wscat -c ws://192.168.20.20:8092/CP001
 ssh -L 3000:192.168.100.30:3000 operator@localhost
 nmap -sV 192.168.20.20 -p 5432,8080,8081,8092
@@ -416,9 +415,9 @@ echo "✅ JUMP HOST РОЗГОРНУТО УСПІШНО!"
 echo "=============================================="
 echo ""
 echo "Network:"
-echo "  eth0: 192.168.100.40/24 (DMZ)"
-echo "  → 192.168.20.0/24  via 192.168.100.1 (Firewall)"
-echo "  → 172.16.0.0/24    via 192.168.100.1 (Firewall)"
+echo "  ens3: 192.168.100.40/24 (DMZ)"
+echo "  → 192.168.20.0/24  via 192.168.100.11 (Firewall)"
+echo "  → 172.16.0.0/24    via 192.168.100.11 (Firewall)"
 echo ""
 echo "Access:"
 echo "  SSH: operator@192.168.100.40"
